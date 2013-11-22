@@ -25,7 +25,8 @@ resp[:reservation_set].each { |reservation|
       name = instance[:dns_name]
       ip = instance[:ip_address]
       id = instance[:instance_id]
-      puts "#{name} #{ip} #{id}"
+      int_dns = instance[:private_dns_name]
+      puts "#{name} #{ip} #{id} #{int_dns}"
     end
   }
 }
