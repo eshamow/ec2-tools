@@ -10,30 +10,45 @@ def LoadConfig(path)
   AWS.ec2.client
 end
 
+def validate(options,env)
+  if options[:keyset]
+    keyset = options[:keyset]
+  elsif env['AWS_KEYSET']
+    keyset = env['AWS_KEYSET']
+  else
+    abort "Use --keyset or set AWS_KEYSET variable"
+  end
+  if options[:configfile]
+    configfile = options[:configfile]
+  else
+    configfile = '~/.awsconfig'
+  end
+
+  {
+    :keyset => keyset,
+    :configfile => configfile
+  }
+end
+
 class EC2 < Thor
   class_option :keyset, :type => :string
+  class_option :configfile, :type => :string
 
   desc "listinstances", "List running EC2 instances"
-  option :configfile
+  option :state
   def listinstances
-    if options[:keyset]
-      keyset = options[:keyset]
-    elsif ENV['AWS_KEYSET']
-      keyset = ENV['AWS_KEYSET']
+    if options[:state]
+      state = options[:state].to_i
     else
-      abort "Use --keyset or set AWS_KEYSET variable"
-    end
-    if options[:configfile]
-      configfile = options[:configfile]
-    else
-      configfile = '~/.awsconfig'
+      state = 16
     end
 
-    client = LoadConfig configfile
-    resp = client.describe_instances(filters: [{ name: 'key-name', values: [keyset] }])
+    opts = validate options, ENV
+    client = LoadConfig opts[:configfile]
+    resp = client.describe_instances(filters: [{ name: 'key-name', values: [opts[:keyset]] }])
     resp[:reservation_set].each { |reservation|
       reservation[:instances_set].each { |instance|
-        if instance[:instance_state][:code] == 16
+        if instance[:instance_state][:code] == state
           name = instance[:dns_name]
           ip = instance[:ip_address]
           id = instance[:instance_id]
@@ -42,6 +57,19 @@ class EC2 < Thor
         end
       }
     }
+  end
+
+  desc "deleteinstances", "delete EC2 instances"
+  option :id
+  def deleteinstances
+    opts = validate options, ENV
+    client = LoadConfig opts[:configfile]
+    validate options, ENV
+    begin
+      resp = client.terminate_instances({ :instance_ids => [options[:id]] })
+    rescue => e
+      puts e
+    end
   end
 end
 
